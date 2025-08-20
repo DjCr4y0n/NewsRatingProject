@@ -1,7 +1,6 @@
 import StockMarketDataScraper as sm
-from cerebras.cloud.sdk import Cerebras
 import time
-from google import genai
+from openai import OpenAI
 
 companies = {
     "mbank": ("109", "MBK.WA"),
@@ -26,6 +25,12 @@ companies = {
     "allegro": ("1559", "ALE.WA")
 }
 
+client = OpenAI(
+    base_url="http://localhost:11434/v1",  # Local Ollama API
+    api_key="337d921f75864bf6826a83ab967d6e3d.wLsy5z5Uii2-_2LWFYjNK3UQ"                       # Dummy key
+)
+
+
 
 def get_stock_price_for_companies(df):
     for idx, row in df.iterrows():
@@ -36,10 +41,6 @@ def get_stock_price_for_companies(df):
         for label, value in prices.items():
             df.loc[idx, label] = value
     return df
-
-
-client = Cerebras(api_key=("csk-vn3d58346whrvj4fcycyvt3drxtnn5ywnc6nknj4nvtc2jr2"))
-clientGemini = genai.Client(api_key="AIzaSyDS7jEPic1DaBGeCrALyhTzVdapSmXkj-M")
 
 
 def get_company_name_from_content(news: str) -> str:
@@ -85,9 +86,13 @@ def get_company_name_from_content(news: str) -> str:
     """
 
     resp = client.chat.completions.create(
-        model="llama-3.3-70b",
-        messages=[{"role": "user", "content": prompt}],
+        model="gpt-oss:20b",
+        messages=[
+            {"role": "system", "content": "You are a helpful financial analyst."},
+            {"role": "user", "content": prompt}
+        ]
     )
+
     text = resp.choices[0].message.content.strip()
     get_company_name_from_content.counter += 1
     return text.split()[0] if text else "Nan"
@@ -130,11 +135,15 @@ def get_rate(title: str, news: str, company: str) -> str:
     Company: {company}
     """
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b",
-        messages=[{"role": "user", "content": prompt}],
+    resp = client.chat.completions.create(
+        model="gpt-oss:20b",
+        messages=[
+            {"role": "system", "content": "You are a helpful financial analyst."},
+            {"role": "user", "content": prompt}
+        ]
     )
-    text = response.choices[0].message.content.strip()
+
+    text = resp.choices[0].message.content.strip()
 
     get_rate.counter += 1
 
