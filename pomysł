@@ -1,0 +1,15 @@
+Zaczne scrapować profil każdej spółki z ich wiadomościami,
+będę scrapował wiadomości z rynków i gospodarki.
+Brać dane tydzień do tyłu.
+
+ograniczenia liczby żądań:
+Gemini: https://ai.google.dev/gemini-api/docs/rate-limits?hl=pl
+ChatGPT: https://platform.openai.com/settings/organization/limits
+DeepSeek: https://api-docs.deepseek.com/quick_start/rate_limit
+
+Llama 3.3 70B - ogarnia polski 1k RPD 30 rpm
+https://console.groq.com/docs/rate-limits
+
+https://github.com/cheahjs/free-llm-api-resources?tab=readme-ov-file
+
+
