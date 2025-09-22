@@ -139,7 +139,10 @@ def main():
         company_name = str(row["company_name"]).strip() if pd.notna(row["company_name"]) else "Nan"
 
         rate = utils.get_rate(title_sample, content_sample, company_name)
-        df_profiles.at[idx, "rate"] = rate
+        if rate is None or str(rate).lower == "nan":
+            df_profiles.at[idx, "rate"] = pd.NA
+        else:
+            df_profiles.at[idx, "rate"] = int(rate)
 
 
     for idx, row in df_categories.iterrows():
