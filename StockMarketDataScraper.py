@@ -14,7 +14,7 @@ def get_stock_data(ticker: str, newsTime: str):
     }
 
 
-    if ticker.strip().lower() == "nan":
+    if ticker.strip().lower() == "nan" or pd.isna(ticker):
         return {label: None for label in intervals.values()}
 
     base_time = pd.to_datetime(newsTime).tz_localize("Europe/Warsaw")

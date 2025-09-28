@@ -71,7 +71,8 @@ def main():
     cutoff = target_day - timedelta(days=5)
 
     df = news_scraping(cutoff)
-
+    df["company_name"] = df["company_name"].astype("string")
+    df["ticker"] = df["ticker"].astype("string")
 
     for idx, row in df.iterrows():
         content_sample = str(row["content"])[:4000]
@@ -82,7 +83,9 @@ def main():
         rate = utils.get_rate(title_sample, content_sample, company_name)
 
         df.at[idx, "company_name"] = str(company_name) if company_name and str(company_name).lower() != "nan" else pd.NA
+
         df.at[idx, "ticker"] = str(ticker) if ticker and str(ticker).lower() != "nan" else pd.NA
+
         df.at[idx, "rate"] = int(rate) if str(rate).isdigit() else pd.NA
 
     df = utils.get_stock_price_for_companies(df)

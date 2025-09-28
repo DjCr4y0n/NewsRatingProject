@@ -1,3 +1,5 @@
+import pandas as pd
+
 import StockMarketDataScraper as sm
 from cerebras.cloud.sdk import Cerebras
 import time
@@ -99,7 +101,7 @@ def map_company_to_ticker(name: str) -> str:
     return companies.get(name.strip().lower(), ("", "Nan"))[1]
 
 
-def get_rate(title: str, news: str, company: str) -> str:
+def get_rate(title: str, news: str, company: str):
     if not hasattr(get_rate, "counter"):
         get_rate.counter = 0
 

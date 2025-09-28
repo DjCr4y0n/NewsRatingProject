@@ -1,5 +1,4 @@
 import httpx
-import numpy as np
 from selectolax.parser import HTMLParser
 import pandas as pd
 from datetime import datetime, timedelta
@@ -92,7 +91,7 @@ def company_profiles_scraping(cutoff):
     columns = ["date", "link", "title", "content", "company_name", "ticker"]
     df_news = pd.DataFrame(all_results, columns=columns)
     df_news["category"] = "profiles"
-    df_news["rate"] = np.nan
+    df_news["rate"] = pd.NA
     return df_news
 
 def category_scraping(cutoff):
@@ -136,10 +135,10 @@ def main():
     for idx, row in df_profiles.iterrows():
         title_sample = str(row["title"])[:4000]
         content_sample = str(row["content"])[:4000]
-        company_name = str(row["company_name"]).strip() if pd.notna(row["company_name"]) else "Nan"
+        company_name = str(row["company_name"]).strip() if pd.notna(row["company_name"]) else pd.NA
 
         rate = utils.get_rate(title_sample, content_sample, company_name)
-        if rate is None or str(rate).lower == "nan":
+        if str(rate).lower() == "nan" or rate is None:
             df_profiles.at[idx, "rate"] = pd.NA
         else:
             df_profiles.at[idx, "rate"] = int(rate)
@@ -155,8 +154,11 @@ def main():
 
         df_categories.at[idx, "company_name"] = company_name
         df_categories.at[idx, "ticker"] = ticker
-        df_categories.at[idx, "rate"] = rate
 
+        if str(rate).lower() == "nan" or rate is None:
+            df_categories.at[idx, "rate"] = pd.NA
+        else:
+            df_categories.at[idx, "rate"] = int(rate)
 
     df_profiles = utils.get_stock_price_for_companies(df_profiles)
     df_categories = utils.get_stock_price_for_companies(df_categories)
