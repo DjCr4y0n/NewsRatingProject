@@ -58,9 +58,9 @@ def news_scraping(cutoff):
             break
 
     df_news = pd.DataFrame(all_rows, columns=["date", "link", "title", "content"])
-    df_news["company_name"] = np.nan
-    df_news["ticker"] = np.nan
-    df_news["rate"] = np.nan
+    df_news["company_name"] = "Nan"
+    df_news["ticker"] = "Nan"
+    df_news["rate"] = "Nan"
     df_news["category"] = "rynki"
     return df_news
 
@@ -74,16 +74,16 @@ def main():
 
 
     for idx, row in df.iterrows():
-        content_sample = str(row["content"])[:4000]
+        content_sample = row["content"]
         company_name = utils.get_company_name_from_content(content_sample)
         ticker = utils.map_company_to_ticker(company_name)
 
-        title_sample = str(row["title"])[:4000]
+        title_sample = row["title"]
         rate = utils.get_rate(title_sample, content_sample, company_name)
 
-        df.at[idx, "company_name"] = str(company_name) if company_name and str(company_name).lower() != "nan" else pd.NA
-        df.at[idx, "ticker"] = str(ticker) if ticker and str(ticker).lower() != "nan" else pd.NA
-        df.at[idx, "rate"] = int(rate) if str(rate).isdigit() else pd.NA
+        df.at[idx, "company_name"] = company_name
+        df.at[idx, "ticker"] = ticker
+        df.at[idx, "rate"] = rate
 
     df = utils.get_stock_price_for_companies(df)
     return df

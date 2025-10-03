@@ -1,6 +1,6 @@
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 
 def get_stock_data(ticker: str, newsTime: str):
