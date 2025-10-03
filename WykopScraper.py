@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import utils
 
@@ -48,8 +47,8 @@ def get_data(cutoff):
             "source.url": "link"
         })
 
-        df_filtered["company_name"] = np.nan
-        df_filtered["ticker"] = np.nan
+        df_filtered["company_name"] = "Nan"
+        df_filtered["ticker"] = "Nan"
         df_filtered["category"] = tag
 
         layout = ['date', 'link', 'title', 'content', 'company_name', 'ticker', 'category']
@@ -70,7 +69,7 @@ def main():
         company_names = []
         tickers = []
         for _, row in df.iterrows():
-            content = str(row["content"])[:4000]
+            content = row["content"]
             company = utils.get_company_name_from_content(content)
             ticker = utils.map_company_to_ticker(company)
             company_names.append(company)
@@ -82,9 +81,9 @@ def main():
 
         rates = []
         for _, row in df.iterrows():
-            title = str(row["title"])[:4000]
-            content = str(row["content"])[:4000]
-            company = str(row["company_name"])[:4000]
+            title = row["title"]
+            content = row["content"]
+            company = row["company_name"]
             rate = utils.get_rate(title, content, company)
             rates.append(rate)
 

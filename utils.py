@@ -1,5 +1,3 @@
-import pandas as pd
-
 import StockMarketDataScraper as sm
 from cerebras.cloud.sdk import Cerebras
 import time
@@ -31,7 +29,7 @@ companies = {
 
 def get_stock_price_for_companies(df):
     for idx, row in df.iterrows():
-        tck = str(row.ticker) if "ticker" in df.columns else None
+        tck = row.ticker if "ticker" in df.columns else None
         if not tck or tck.lower() == "nan":
             continue
         prices = sm.get_stock_data(tck, row.date)
