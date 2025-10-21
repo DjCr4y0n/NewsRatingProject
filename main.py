@@ -10,8 +10,13 @@ def main():
     df_bankier = Bankier.main()
     df_wykop = Wykop.main()
 
+    df_previous = pd.read_excel(excel)
+
     df_combined = pd.concat([df_pap, df_bankier, df_wykop], ignore_index=True)
-    df_combined.to_excel(excel, index=False, sheet_name='Combined')
+
+    df_updated = pd.concat([df_previous, df_combined], ignore_index=True)
+    
+    df_updated.to_excel(excel, index=False, sheet_name="Combined")
 
 
 
