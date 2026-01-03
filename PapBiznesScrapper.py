@@ -1,5 +1,7 @@
 import httpx
 from selectolax.parser import HTMLParser
+import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta
 import utils
@@ -14,28 +16,6 @@ def get_html(baseurl, page):
     html = HTMLParser(resp.text)
     return html
 
-companies = {
-    "mbank": ("109", "MBK.WA"),
-    "budimex": ("112", "BDX.WA"),
-    "sanpl": ("117", "SPL.WA"),
-    "ccc": ("456", "CCC.WA"),
-    "kety": ("274", "KTY.WA"),
-    "kghm": ("350", "KGH.WA"),
-    "lpp": ("380", "LPP.WA"),
-    "cdprojekt": ("476", "CDR.WA"),
-    "pekao": ("76", "PEO.WA"),
-    "pknorlen": ("511", "PKN.WA"),
-    "pkobp": ("512", "PKO.WA"),
-    "orangepl": ("636", "OPL.WA"),
-    "pge": ("503", "PGE.WA"),
-    "pzu": ("558", "PZU.WA"),
-    "kruk": ("558", "KRU.WA"),
-    "alior": ("1180", "ALR.WA"),
-    "dinopl": ("1431", "DNP.WA"),
-    "pepco": ("1593", "PCO.WA"),
-    "zabka": ("1737", "ZAB.WA"),
-    "allegro": ("1559", "ALE.WA")
-}
 
 def parse_page(html, cutoff_date):
     rows = []
@@ -71,7 +51,7 @@ def parse_page(html, cutoff_date):
 def company_profiles_scraping(cutoff):
     all_results = []
 
-    for company, data in companies.items():
+    for company, data in utils.companies.items():
         code = data[0]
         ticker = data[1]
         baseurl = f"https://biznes.pap.pl/wiadomosci/firma/{code}?page="
