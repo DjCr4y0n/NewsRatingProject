@@ -1,4 +1,3 @@
-import time
 import random
 import pandas as pd
 import requests
@@ -34,9 +33,6 @@ def scraping(cutoff):
     break_flag = False
     all_data = []
     for page_number in range(1,99):
-        if break_flag:
-            break
-        time.sleep(random.uniform(2, 5))
         page_content = parse('https://www.bankier.pl/rynki/wiadomosci', page_number)
         articles_list_tag = page_content.find('ul', class_='m-listing-article-list')
         articles_tag = articles_list_tag.select('li[class="m-listing-article-list__item"]')
@@ -50,15 +46,18 @@ def scraping(cutoff):
                     break_flag = True
                     break
                 else:
-                    time.sleep(random.uniform(1, 4))
                     all_data.append(gather_content(anchor))
             else:
                 print(article)
                 print('No anchor for this news (Bankier)')
+        if break_flag:
+            break
 
     df_final = pd.DataFrame(all_data)
     df_final['company_name'] = None
     df_final['ticker'] = None
+    df_final["rate"] = "Nan"
+    df_final["category"] = "bankier"
 
     return df_final
 
@@ -77,16 +76,11 @@ def gather_content(anchor):
 
     content = ''
     for pararagraph in text_paragraphs:
-        content += pararagraph.text
+        content += pararagraph.text + ' '
 
     final_data = {'date': date, 'link': url, 'title': title, 'content': content}
 
     return final_data
-
-
-
-
-
 
 
 def main():

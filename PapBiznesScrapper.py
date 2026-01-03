@@ -1,77 +1,90 @@
-import httpx
-from selectolax.parser import HTMLParser
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta
 import utils
+import random
 
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-}
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
+    'Opera/9.80 (Windows NT 6.1; U; en) Presto/2.12.388 Version/12.18',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0',
+    'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+]
 
-def get_html(baseurl, page):
-    resp = httpx.get(baseurl + str(page), headers=headers, follow_redirects=True)
-    html = HTMLParser(resp.text)
-    return html
+def parse(url, page_number=None):
+    session = requests.Session()
+    retry = Retry(total=5, backoff_factor=2, status_forcelist=[503, 502, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+    if page_number is None:
+        page = session.get(f'{url}', headers={'User-Agent': random.choice(user_agents)})
+    else:
+        page = session.get(f'{url}/{page_number}', headers={'User-Agent': random.choice(user_agents)})
+    print(page)
+    soup = BeautifulSoup(page.text, 'html.parser')
+    return soup
 
 
-def parse_page(html, cutoff_date):
-    rows = []
-    break_flag = False
+def gather_content(anchor, date, ticker='Nan', name='Nan'):
+    url = f'https://biznes.pap.pl{anchor["href"]}'
+    print(url)
+    page_content = parse(url)
+    main_content_tag = page_content.find('article', id='article')
+    print(url)
 
-    for news in html.css("div.col-lg-9  ul.newsList li div.textWrapper"):
-        date_str = news.css_first(".date").text()
-        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
+    title = main_content_tag.find('span', class_='field--name-title').text
 
-        if date < cutoff_date:
-            break_flag = True
-            break
+    text_paragraphs = main_content_tag.find_all('p', class_='selectionShareable')
 
-        aTags = news.css("a")
-        href = aTags[1].attrs["href"]
-        newUrl = f"https://biznes.pap.pl{href}"
+    content = ''
+    for pararagraph in text_paragraphs:
+        content += pararagraph.text + ' '
 
-        newResp = httpx.get(newUrl, headers=headers)
-        html = HTMLParser(newResp.text)
-        wrapper = html.css_first("article#article")
+    final_data = {'date': date, 'link': url, 'title': title, 'content': content, 'company_name': name, 'ticker': ticker}
 
-        newsTitle = wrapper.css_first("h1.articleTitle span").text()
-        newsTexts = wrapper.css("p")
-        wholeText = ""
-
-        for i in range(1, len(newsTexts)):
-            wholeText += newsTexts[i].text()
-
-        rows.append([date_str, newUrl, newsTitle, wholeText])
-
-    return rows, break_flag
+    return final_data
 
 def company_profiles_scraping(cutoff):
-    all_results = []
+    all_data = []
 
     for company, data in utils.companies.items():
         code = data[0]
         ticker = data[1]
         baseurl = f"https://biznes.pap.pl/wiadomosci/firma/{code}?page="
+        break_flag = False
 
-        for page in range(99):
-            html = get_html(baseurl, page)
-            rows, stop = parse_page(html, cutoff)
+        for page in range(1, 99):
+            page_content = parse(baseurl, page)
+            articles_list_tag = page_content.find('ul', class_='newsList')
+            articles_tag = articles_list_tag.find_all('li', class_='news')
 
-            for r in rows:
-                r.extend([company, ticker])
-
-            all_results.extend(rows)
-
-            if stop:
+            for article in articles_tag:
+                wrapper = article.find('div', class_='textWrapper')
+                anchor = wrapper.find('a', recursive=False)
+                if anchor:
+                    post_date = wrapper.find('div', class_='date').text
+                    post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
+                    if post_date_formatted < cutoff:
+                        break_flag = True
+                        break
+                    else:
+                        all_data.append(gather_content(anchor, post_date_formatted, ticker, company))
+                else:
+                    print(article)
+                    print('No anchor for this news (Pap)')
+            if break_flag:
                 break
 
-    columns = ["date", "link", "title", "content", "company_name", "ticker"]
-    df_news = pd.DataFrame(all_results, columns=columns)
+
+    df_news = pd.DataFrame(all_data)
     df_news["category"] = "profiles"
     df_news["rate"] = "Nan"
+
     return df_news
 
 def category_scraping(cutoff):
@@ -81,16 +94,30 @@ def category_scraping(cutoff):
         "economy": "https://biznes.pap.pl/kategoria/gospodarka?page="
     }
     for category, url in categories.items():
-        all_results = []
+        break_flag = False
+        all_data = []
         for page in range(99):
-            html = get_html(url, page)
-            rows, stop = parse_page(html, cutoff)
-            all_results.extend(rows)
-            if stop:
+            page_content = parse(url, page)
+            articles_list_tag = page_content.find('ul', class_='newsList')
+            articles_tag = articles_list_tag.find_all('li', class_='news')
+
+            for article in articles_tag:
+                anchor = article.find('a')
+                if anchor:
+                    post_date = anchor.find('div', class_='date').text
+                    post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
+                    if post_date_formatted < cutoff:
+                        break_flag = True
+                        break
+                    else:
+                        all_data.append(gather_content(anchor, post_date_formatted))
+                else:
+                    print(article)
+                    print('No anchor for this news (Pap)')
+            if break_flag:
                 break
 
-        columns = ["date", "link", "title", "content"]
-        df_news = pd.DataFrame(all_results, columns=columns)
+        df_news = pd.DataFrame(all_data)
 
         df_news["company_name"] = "Nan"
         df_news["ticker"] = "Nan"
@@ -151,7 +178,7 @@ def main():
         df_combined = pd.DataFrame()
 
 
-    return df_combined
+    print(df_combined)
 
 if __name__ == "__main__":
     main()
