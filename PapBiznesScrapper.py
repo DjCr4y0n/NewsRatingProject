@@ -1,97 +1,91 @@
-import httpx
-from selectolax.parser import HTMLParser
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timedelta
 import utils
+import random
+import time
 
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-}
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
+    'Opera/9.80 (Windows NT 6.1; U; en) Presto/2.12.388 Version/12.18',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0',
+    'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+]
 
-def get_html(baseurl, page):
-    resp = httpx.get(baseurl + str(page), headers=headers, follow_redirects=True)
-    html = HTMLParser(resp.text)
-    return html
+def parse(url, page_number=None):
+    time.sleep(2)
+    session = requests.Session()
+    retry = Retry(total=5, backoff_factor=2, status_forcelist=[503, 502, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+    if page_number is None:
+        page = session.get(f'{url}', headers={'User-Agent': random.choice(user_agents)})
+    else:
+        page = session.get(f'{url}{page_number}', headers={'User-Agent': random.choice(user_agents)})
+    print(page)
+    soup = BeautifulSoup(page.text, 'html.parser')
+    return soup
 
-companies = {
-    "mbank": ("109", "MBK.WA"),
-    "budimex": ("112", "BDX.WA"),
-    "sanpl": ("117", "SPL.WA"),
-    "ccc": ("456", "CCC.WA"),
-    "kety": ("274", "KTY.WA"),
-    "kghm": ("350", "KGH.WA"),
-    "lpp": ("380", "LPP.WA"),
-    "cdprojekt": ("476", "CDR.WA"),
-    "pekao": ("76", "PEO.WA"),
-    "pknorlen": ("511", "PKN.WA"),
-    "pkobp": ("512", "PKO.WA"),
-    "orangepl": ("636", "OPL.WA"),
-    "pge": ("503", "PGE.WA"),
-    "pzu": ("558", "PZU.WA"),
-    "kruk": ("558", "KRU.WA"),
-    "alior": ("1180", "ALR.WA"),
-    "dinopl": ("1431", "DNP.WA"),
-    "pepco": ("1593", "PCO.WA"),
-    "zabka": ("1737", "ZAB.WA"),
-    "allegro": ("1559", "ALE.WA")
-}
 
-def parse_page(html, cutoff_date):
-    rows = []
-    break_flag = False
+def gather_content(anchor, date, ticker='Nan', name='Nan'):
+    url = f'https://biznes.pap.pl{anchor["href"]}'
+    print(url)
+    page_content = parse(url)
+    main_content_tag = page_content.find('article', id='article')
 
-    for news in html.css("div.col-lg-9  ul.newsList li div.textWrapper"):
-        date_str = news.css_first(".date").text()
-        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
+    title = main_content_tag.find('span', class_='field--name-title').text
 
-        if date < cutoff_date:
-            break_flag = True
-            break
+    text_paragraphs = main_content_tag.find_all('p', class_='selectionShareable')
 
-        aTags = news.css("a")
-        href = aTags[1].attrs["href"]
-        newUrl = f"https://biznes.pap.pl{href}"
+    content = ''
+    for pararagraph in text_paragraphs:
+        content += pararagraph.text + ' '
 
-        newResp = httpx.get(newUrl, headers=headers)
-        html = HTMLParser(newResp.text)
-        wrapper = html.css_first("article#article")
+    final_data = {'date': date, 'link': url, 'title': title, 'content': content, 'company_name': name, 'ticker': ticker}
 
-        newsTitle = wrapper.css_first("h1.articleTitle span").text()
-        newsTexts = wrapper.css("p")
-        wholeText = ""
-
-        for i in range(1, len(newsTexts)):
-            wholeText += newsTexts[i].text()
-
-        rows.append([date_str, newUrl, newsTitle, wholeText])
-
-    return rows, break_flag
+    return final_data
 
 def company_profiles_scraping(cutoff):
-    all_results = []
+    all_data = []
 
-    for company, data in companies.items():
+    for company, data in utils.companies.items():
         code = data[0]
         ticker = data[1]
         baseurl = f"https://biznes.pap.pl/wiadomosci/firma/{code}?page="
+        break_flag = False
 
         for page in range(99):
-            html = get_html(baseurl, page)
-            rows, stop = parse_page(html, cutoff)
+            page_content = parse(baseurl, page)
+            articles_list_tag = page_content.find('ul', class_='newsList')
+            articles_tag = articles_list_tag.find_all('li', class_='news')
 
-            for r in rows:
-                r.extend([company, ticker])
-
-            all_results.extend(rows)
-
-            if stop:
+            for article in articles_tag:
+                wrapper = article.find('div', class_='textWrapper')
+                anchor = wrapper.find('a', recursive=False)
+                if anchor:
+                    post_date = wrapper.find('div', class_='date').text
+                    post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
+                    if post_date_formatted < cutoff:
+                        break_flag = True
+                        break
+                    else:
+                        all_data.append(gather_content(anchor, post_date_formatted, ticker, company))
+                else:
+                    print(article)
+                    print('No anchor for this news (Pap)')
+            if break_flag:
                 break
 
-    columns = ["date", "link", "title", "content", "company_name", "ticker"]
-    df_news = pd.DataFrame(all_results, columns=columns)
+
+    df_news = pd.DataFrame(all_data)
     df_news["category"] = "profiles"
     df_news["rate"] = "Nan"
+
     return df_news
 
 def category_scraping(cutoff):
@@ -101,16 +95,31 @@ def category_scraping(cutoff):
         "economy": "https://biznes.pap.pl/kategoria/gospodarka?page="
     }
     for category, url in categories.items():
-        all_results = []
+        break_flag = False
+        all_data = []
         for page in range(99):
-            html = get_html(url, page)
-            rows, stop = parse_page(html, cutoff)
-            all_results.extend(rows)
-            if stop:
+            page_content = parse(url, page)
+            articles_list_tag = page_content.find('ul', class_='newsList')
+            articles_tag = articles_list_tag.find_all('li', class_='news')
+
+            for article in articles_tag:
+                wrapper = article.find('div', class_='textWrapper')
+                anchor = wrapper.find('a', recursive=False)
+                if anchor:
+                    post_date = wrapper.find('div', class_='date').text
+                    post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
+                    if post_date_formatted < cutoff:
+                        break_flag = True
+                        break
+                    else:
+                        all_data.append(gather_content(anchor, post_date_formatted))
+                else:
+                    print(article)
+                    print('No anchor for this news (Pap)')
+            if break_flag:
                 break
 
-        columns = ["date", "link", "title", "content"]
-        df_news = pd.DataFrame(all_results, columns=columns)
+        df_news = pd.DataFrame(all_data)
 
         df_news["company_name"] = "Nan"
         df_news["ticker"] = "Nan"
@@ -135,10 +144,13 @@ def main():
     for idx, row in df_profiles.iterrows():
         title_sample = row["title"]
         content_sample = row["content"]
-        company_name = str(row["company_name"]).strip()
+        company_name = row["company_name"]
 
         rate = utils.get_rate(title_sample, content_sample, company_name)
-        df_profiles.at[idx, "rate"] = rate
+        if rate.lower() == "nan":
+            df_profiles.at[idx, "rate"] = "Nan"
+        else:
+            df_profiles.at[idx, "rate"] = rate
 
 
     for idx, row in df_categories.iterrows():
@@ -151,8 +163,11 @@ def main():
 
         df_categories.at[idx, "company_name"] = company_name
         df_categories.at[idx, "ticker"] = ticker
-        df_categories.at[idx, "rate"] = rate
 
+        if rate.lower() == "nan" or rate is None:
+            df_categories.at[idx, "rate"] = "Nan"
+        else:
+            df_categories.at[idx, "rate"] = rate
 
     df_profiles = utils.get_stock_price_for_companies(df_profiles)
     df_categories = utils.get_stock_price_for_companies(df_categories)
