@@ -1,77 +1,95 @@
-import httpx
-import numpy as np
-from selectolax.parser import HTMLParser
+import random
 import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import utils
 
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
+    'Opera/9.80 (Windows NT 6.1; U; en) Presto/2.12.388 Version/12.18',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0',
+    'Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+]
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-}
+def parse(url, page_number=None):
+    session = requests.Session()
+    retry = Retry(total=5, backoff_factor=2, status_forcelist=[503, 502, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+    if page_number is None:
+        page = session.get(f'{url}', headers={'User-Agent': random.choice(user_agents)})
+    else:
+        page = session.get(f'{url}/{page_number}', headers={'User-Agent': random.choice(user_agents)})
+    print(page)
+    soup = BeautifulSoup(page.text, 'html.parser')
+    return soup
 
-def get_html(baseurl, page):
-    resp = httpx.get(baseurl + str(page), headers=headers, follow_redirects=True)
-    html = HTMLParser(resp.text)
-    return html
 
-def parse_page(html, cutoff_date):
-    rows = []
+def scraping(cutoff):
     break_flag = False
+    all_data = []
+    for page_number in range(1,99):
+        page_content = parse('https://www.bankier.pl/rynki/wiadomosci', page_number)
+        articles_list_tag = page_content.find('ul', class_='m-listing-article-list')
+        articles_tag = articles_list_tag.select('li[class="m-listing-article-list__item"]')
 
-    for news in html.css("section#articleList div.article"):
-        date_str = news.css_first(".entry-date").text()
-        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
-
-        if date < cutoff_date:
-            break_flag = True
+        for article in articles_tag:
+            anchor = article.find('a')
+            if anchor:
+                post_date = anchor.find('div', class_='m-listing-article-list__date-time').text
+                post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
+                if post_date_formatted < cutoff:
+                    break_flag = True
+                    break
+                else:
+                    all_data.append(gather_content(anchor))
+            else:
+                print(article)
+                print('No anchor for this news (Bankier)')
+        if break_flag:
             break
 
-        aTags = news.css("a")
-        href = aTags[0].attrs["href"]
-        newUrl = f"https://www.bankier.pl{href}"
+    df_final = pd.DataFrame(all_data)
+    df_final['company_name'] = None
+    df_final['ticker'] = None
+    df_final["rate"] = "Nan"
+    df_final["category"] = "bankier"
 
-        newResp = httpx.get(newUrl, headers=headers)
-        html = HTMLParser(newResp.text)
-        wrapper = html.css_first("article#article")
+    return df_final
 
-        newsTitle = wrapper.css_first("h1.a-heading").text()
-        newsTexts = wrapper.css("p")
-        wholeText = ""
 
-        for i in range(1, len(newsTexts)):
-            wholeText += newsTexts[i].text()
+def gather_content(anchor):
+    url = anchor['data-vr-contentbox-url']
+    page_content = parse(url)
+    main_content_tag = page_content.find('article', class_='o-article')
+    print(url)
 
-        rows.append([date_str, newUrl, newsTitle, wholeText])
+    title = main_content_tag.find('h1', class_='a-heading').text
+    date = main_content_tag.find('span', class_='a-span').text
 
-    return rows, break_flag
+    article_text_content_tag = main_content_tag.find('section', class_='o-article-content')
+    text_paragraphs = article_text_content_tag.find_all('p')
 
-def news_scraping(cutoff):
-    url = "https://www.bankier.pl/rynki/wiadomosci/"
-    all_rows = []
+    content = ''
+    for pararagraph in text_paragraphs:
+        content += pararagraph.text + ' '
 
-    for page in range(1, 99):
-        html = get_html(url, page)
-        rows, stop = parse_page(html, cutoff)
-        all_rows.extend(rows)
-        if stop:
-            break
+    final_data = {'date': date, 'link': url, 'title': title, 'content': content}
 
-    df_news = pd.DataFrame(all_rows, columns=["date", "link", "title", "content"])
-    df_news["company_name"] = "Nan"
-    df_news["ticker"] = "Nan"
-    df_news["rate"] = "Nan"
-    df_news["category"] = "rynki"
-    return df_news
-
+    return final_data
 
 
 def main():
     target_day = datetime.today()
     cutoff = target_day - timedelta(days=5)
 
-    df = news_scraping(cutoff)
-
+    df = scraping(cutoff)
+    df["company_name"] = df["company_name"].astype("string")
+    df["ticker"] = df["ticker"].astype("string")
 
     for idx, row in df.iterrows():
         content_sample = row["content"]
@@ -82,11 +100,14 @@ def main():
         rate = utils.get_rate(title_sample, content_sample, company_name)
 
         df.at[idx, "company_name"] = company_name
+
         df.at[idx, "ticker"] = ticker
+
         df.at[idx, "rate"] = rate
 
     df = utils.get_stock_price_for_companies(df)
-    return df
+
+    return  df
 
 if __name__ == "__main__":
     main()
