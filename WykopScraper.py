@@ -50,8 +50,9 @@ def get_data(cutoff):
         df_filtered["company_name"] = "Nan"
         df_filtered["ticker"] = "Nan"
         df_filtered["category"] = tag
+        df_filtered["source"] = "Wykop"
 
-        layout = ['date', 'link', 'title', 'content', 'company_name', 'ticker', 'category']
+        layout = ['date', 'link', 'title', 'content', 'company_name', 'ticker', 'category', 'source']
         df_filtered = df_filtered[layout]
 
         tag_dataframes[tag] = df_filtered

@@ -85,6 +85,7 @@ def company_profiles_scraping(cutoff):
     df_news = pd.DataFrame(all_data)
     df_news["category"] = "profiles"
     df_news["rate"] = "Nan"
+    df_news["source"] = 'Pap'
 
     return df_news
 
@@ -126,6 +127,7 @@ def category_scraping(cutoff):
         df_news["rate"] = "Nan"
 
         df_news["category"] = category
+        df_news["source"] = 'Pap'
         all_dfs.append(df_news)
 
     final_df = pd.concat(all_dfs, ignore_index=True)

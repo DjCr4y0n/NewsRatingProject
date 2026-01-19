@@ -57,7 +57,8 @@ def scraping(cutoff):
     df_final['company_name'] = None
     df_final['ticker'] = None
     df_final["rate"] = "Nan"
-    df_final["category"] = "bankier"
+    df_final["category"] = "rynki"
+    df_final["source"] = "Bankier"
 
     return df_final
 
