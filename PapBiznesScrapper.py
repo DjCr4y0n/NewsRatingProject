@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import utils
 import random
+import time
 
 
 user_agents = [
@@ -17,6 +18,7 @@ user_agents = [
 ]
 
 def parse(url, page_number=None):
+    time.sleep(2)
     session = requests.Session()
     retry = Retry(total=5, backoff_factor=2, status_forcelist=[503, 502, 504])
     adapter = HTTPAdapter(max_retries=retry)
@@ -24,7 +26,7 @@ def parse(url, page_number=None):
     if page_number is None:
         page = session.get(f'{url}', headers={'User-Agent': random.choice(user_agents)})
     else:
-        page = session.get(f'{url}/{page_number}', headers={'User-Agent': random.choice(user_agents)})
+        page = session.get(f'{url}{page_number}', headers={'User-Agent': random.choice(user_agents)})
     print(page)
     soup = BeautifulSoup(page.text, 'html.parser')
     return soup
@@ -35,7 +37,6 @@ def gather_content(anchor, date, ticker='Nan', name='Nan'):
     print(url)
     page_content = parse(url)
     main_content_tag = page_content.find('article', id='article')
-    print(url)
 
     title = main_content_tag.find('span', class_='field--name-title').text
 
@@ -58,7 +59,7 @@ def company_profiles_scraping(cutoff):
         baseurl = f"https://biznes.pap.pl/wiadomosci/firma/{code}?page="
         break_flag = False
 
-        for page in range(1, 99):
+        for page in range(99):
             page_content = parse(baseurl, page)
             articles_list_tag = page_content.find('ul', class_='newsList')
             articles_tag = articles_list_tag.find_all('li', class_='news')
@@ -102,9 +103,10 @@ def category_scraping(cutoff):
             articles_tag = articles_list_tag.find_all('li', class_='news')
 
             for article in articles_tag:
-                anchor = article.find('a')
+                wrapper = article.find('div', class_='textWrapper')
+                anchor = wrapper.find('a', recursive=False)
                 if anchor:
-                    post_date = anchor.find('div', class_='date').text
+                    post_date = wrapper.find('div', class_='date').text
                     post_date_formatted = datetime.strptime(post_date, "%Y-%m-%d %H:%M")
                     if post_date_formatted < cutoff:
                         break_flag = True
@@ -178,7 +180,7 @@ def main():
         df_combined = pd.DataFrame()
 
 
-    print(df_combined)
+    return df_combined
 
 if __name__ == "__main__":
     main()

@@ -106,7 +106,8 @@ def main():
         df.at[idx, "rate"] = rate
 
     df = utils.get_stock_price_for_companies(df)
-    print(df)
+
+    return  df
 
 if __name__ == "__main__":
     main()
