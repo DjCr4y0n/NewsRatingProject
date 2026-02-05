@@ -18,7 +18,7 @@ user_agents = [
 ]
 
 def parse(url, page_number=None):
-    time.sleep(2)
+    time.sleep(5)
     session = requests.Session()
     retry = Retry(total=5, backoff_factor=2, status_forcelist=[503, 502, 504])
     adapter = HTTPAdapter(max_retries=retry)
